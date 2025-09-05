@@ -4,15 +4,15 @@ import shutil
 import streamlit as st
 
 # --- Helper functions ---
-def find_video_url(song):
-    """Search YouTube for a song and return the first working video URL"""
+def find_working_video(song):
+    """Search YouTube and return the first video URL that can actually be downloaded"""
     ydl_opts = {"quiet": True}
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         search_results = ydl.extract_info(f"ytsearch5:{song}", download=False)["entries"]
         for result in search_results:
+            video_url = f"https://www.youtube.com/watch?v={result['id']}"
             try:
-                video_url = f"https://www.youtube.com/watch?v={result['id']}"
-                # Try extracting info to confirm it's valid
+                # Try extracting info to confirm it's downloadable
                 ydl.extract_info(video_url, download=False)
                 return video_url
             except Exception:
@@ -20,9 +20,9 @@ def find_video_url(song):
     raise Exception("No downloadable video found for this song.")
 
 def download_audio(video_url, output_folder):
-    """Download audio from YouTube"""
+    """Download audio from YouTube (prefer m4a streams for reliability)"""
     ydl_opts = {
-        "format": "bestaudio/best",
+        "format": "bestaudio[ext=m4a]/bestaudio/best",
         "outtmpl": f"{output_folder}/%(title)s.%(ext)s",
         "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3"}],
         "quiet": True
@@ -40,7 +40,7 @@ def process_songs(folder_name, song_input):
 
     for song in song_list:
         try:
-            video_url = find_video_url(song)
+            video_url = find_working_video(song)
             results.append(f"🎵 Best match for *{song}*: {video_url}")
             download_audio(video_url, download_folder)
             results.append(f"✅ Downloaded: {song}")
@@ -62,6 +62,9 @@ Enter a folder name and one or more song titles (comma-separated).
 💡 **Tip:** If you want family-friendly versions, just add the word **"clean"** to your song title.
 For example:  
 - `Creep Radiohead Clean`  
+
+⚠️ **Note:** Some videos (VEVO, premium, age-restricted) may still be blocked.  
+The app will automatically try the next search result if one fails.
 """)
 
 folder_name = st.text_input("Folder Name", "my_music")
