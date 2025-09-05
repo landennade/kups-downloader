@@ -1,26 +1,30 @@
 import yt_dlp
+from rapidfuzz import process
+from googleapiclient.discovery import build
 import os
 import shutil
 import streamlit as st
 
+# --- YouTube API setup ---
+API_KEY = "AIzaSyB4ZhXpkb1OLnuAGVsNbvwr32Xp6lTzuVU"  # Hardcoded
+youtube = build("youtube", "v3", developerKey=API_KEY)
+
 # --- Helper functions ---
-def find_working_video(song):
-    """Search YouTube and return the first video URL that can actually be downloaded"""
-    ydl_opts = {"quiet": True}
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        search_results = ydl.extract_info(f"ytsearch5:{song}", download=False)["entries"]
-        for result in search_results:
-            video_url = f"https://www.youtube.com/watch?v={result['id']}"
-            try:
-                # Try extracting info to confirm it's downloadable
-                ydl.extract_info(video_url, download=False)
-                return video_url
-            except Exception:
-                continue
-    raise Exception("No downloadable video found for this song.")
+def search_youtube(song):
+    """Search YouTube for a song and return a dict of {video_id: title}"""
+    request = youtube.search().list(q=song, part="snippet", maxResults=5, type="video")
+    response = request.execute()
+    videos = {item["id"]["videoId"]: item["snippet"]["title"] for item in response["items"]}
+    return videos
+
+def find_best_match(song, videos):
+    """Find the best matching video title"""
+    best_match = process.extractOne(song, videos.values())[0]
+    video_id = [k for k, v in videos.items() if v == best_match][0]
+    return f"https://www.youtube.com/watch?v={video_id}"
 
 def download_audio(video_url, output_folder):
-    """Download audio from YouTube (prefer m4a streams for reliability)"""
+    """Download audio from YouTube"""
     ydl_opts = {
         "format": "bestaudio[ext=m4a]/bestaudio/best",
         "outtmpl": f"{output_folder}/%(title)s.%(ext)s",
@@ -40,7 +44,11 @@ def process_songs(folder_name, song_input):
 
     for song in song_list:
         try:
-            video_url = find_working_video(song)
+            videos = search_youtube(song)
+            if not videos:
+                results.append(f"❌ No results found for '{song}'")
+                continue
+            video_url = find_best_match(song, videos)
             results.append(f"🎵 Best match for *{song}*: {video_url}")
             download_audio(video_url, download_folder)
             results.append(f"✅ Downloaded: {song}")
@@ -54,7 +62,7 @@ def process_songs(folder_name, song_input):
     return "\n".join(results), zip_path
 
 # --- Streamlit UI ---
-st.title("🎶 YouTube Song Downloader")
+st.title("🎶 KUPS Song Downloader")
 
 st.markdown("""
 Enter a folder name and one or more song titles (comma-separated).
@@ -62,9 +70,6 @@ Enter a folder name and one or more song titles (comma-separated).
 💡 **Tip:** If you want family-friendly versions, just add the word **"clean"** to your song title.
 For example:  
 - `Creep Radiohead Clean`  
-
-⚠️ **Note:** Some videos (VEVO, premium, age-restricted) may still be blocked.  
-The app will automatically try the next search result if one fails.
 """)
 
 folder_name = st.text_input("Folder Name", "my_music")
