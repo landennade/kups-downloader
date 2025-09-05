@@ -6,7 +6,7 @@ import shutil
 import streamlit as st
 
 # --- YouTube API setup ---
-API_KEY = "AIzaSyB4ZhXpkb1OLnuAGVsNbvwr32Xp6lTzuVU"  # Hardcoded like Colab
+API_KEY = "  # Hardcoded like Colab
 youtube = build("youtube", "v3", developerKey=API_KEY)
 
 # --- Helper functions ---
